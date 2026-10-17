@@ -70,8 +70,16 @@ object PushWork {
         )
     }
 
-    fun disconnect(context: Context) {
-        val instance = context.vault().invalidate()
+    fun disconnect(
+        context: Context,
+        expectedEpoch: String? = null,
+    ) {
+        val journal = context.vault()
+        val instance =
+            synchronized(journal) {
+                if (expectedEpoch != null && !journal.current(expectedEpoch)) return
+                journal.invalidate()
+            }
         if (instance.isNotEmpty()) runCatching { UnifiedPush.unregister(context, instance) }
         NotificationManagerCompat.from(context).cancelAll()
         schedule(context)
@@ -250,7 +258,7 @@ class PushWorker(
                 if (expectedAccount != null &&
                     store.current(expectedAccount.epoch)
                 ) {
-                    PushWork.disconnect(applicationContext)
+                    PushWork.disconnect(applicationContext, expectedAccount.epoch)
                 }
                 return Result.failure()
             }
